@@ -49,13 +49,12 @@ const ChatInterface = () => {
   const messagesEndRef = useRef(null);
   const timerRef = useRef(null);
   const isInterviewRunning = useRef(false);
-  const questionGenerationLock = useRef(false); // NEW: Separate lock for question generation
+  const questionGenerationLock = useRef(false);
 
   const difficultyLevels = ["Easy", "Medium", "Hard"];
   const timeLimits = { Easy: 20, Medium: 60, Hard: 120 };
 
   useEffect(() => {
-    // Prevent multiple instances
     if (isInterviewRunning.current) {
       console.log("🚫 Interview already running in another instance");
       return;
@@ -65,11 +64,9 @@ const ChatInterface = () => {
     console.log("✅ Interview instance started");
 
     return () => {
-      // Cleanup on unmount
       isInterviewRunning.current = false;
-      questionGenerationLock.current = false; // Reset lock on unmount
+      questionGenerationLock.current = false;
       console.log("✅ Interview instance cleaned up");
-      // Clear any ongoing processes
       if (timerRef.current) {
         clearInterval(timerRef.current);
       }
@@ -105,7 +102,7 @@ const ChatInterface = () => {
   };
 
   const generateNextQuestion = useCallback(async () => {
-    // Enhanced protection - use separate lock
+    // Enhanced protection
     if (questionGenerationLock.current) {
       console.log("⏸️ Question generation locked - already in progress");
       return;
@@ -157,40 +154,72 @@ const ChatInterface = () => {
         console.log(
           "🔄 Similar question detected, skipping to avoid duplicates"
         );
-        return;
+        // IMPORTANT: Don't return here - generate a different question instead
+        console.log("🔄 Generating alternative question...");
+        const alternativeQuestion = await apiService.generateQuestion(
+          difficulty,
+          context +
+            " Generate a different type of question, not about React components."
+        );
+
+        if (
+          alternativeQuestion &&
+          !recentQuestions.some(
+            (recentQ) =>
+              recentQ.includes(alternativeQuestion.substring(0, 50)) ||
+              alternativeQuestion.includes(recentQ.substring(0, 50))
+          )
+        ) {
+          // Use the alternative question
+          dispatchQuestion(alternativeQuestion, difficulty);
+        } else {
+          // If alternative is also similar, use mock question as fallback
+          console.log("🔄 Using mock question as fallback");
+          const mockQuestions = {
+            Easy: [
+              "What is JSX in React and how is it different from HTML?",
+              "Explain the concept of components in React.",
+              "What are props in React and how do you use them?",
+              "How do you handle events in React?",
+              "What is the difference between functional and class components?",
+            ],
+            Medium: [
+              "How does React's virtual DOM improve performance?",
+              "What are React hooks and why were they introduced?",
+              "Explain the useEffect hook and its dependencies.",
+              "How do you manage state in a React application?",
+              "What is the purpose of keys in React lists?",
+            ],
+            Hard: [
+              "Explain React's reconciliation algorithm.",
+              "How would you optimize a React application's performance?",
+              "What are React error boundaries and how do they work?",
+              "Explain the Context API and when to use it.",
+              "How does React handle server-side rendering?",
+            ],
+          };
+
+          const questions = mockQuestions[difficulty] || mockQuestions.Easy;
+          const randomQuestion =
+            questions[Math.floor(Math.random() * questions.length)];
+          dispatchQuestion(randomQuestion, difficulty);
+        }
+      } else {
+        // Use the original question if not similar
+        dispatchQuestion(question, difficulty);
       }
-
-      dispatch(
-        setCurrentQuestion({
-          text: question,
-          difficulty: difficulty,
-          timeLimit: timeLimits[difficulty],
-        })
-      );
-
-      dispatch(setTimer(timeLimits[difficulty]));
-
-      dispatch(
-        addChatMessage({
-          type: "question",
-          content: question,
-          difficulty: difficulty,
-          timestamp: new Date().toISOString(),
-        })
-      );
-
-      console.log(
-        `✅ Question ${
-          interviewProgress.currentQuestionIndex + 1
-        } generated successfully`
-      );
     } catch (error) {
       console.error("❌ Error generating question:", error);
+      // Use fallback mock question
+      const difficulty = getCurrentDifficulty();
+      const mockQuestion = `Explain the importance of ${difficulty.toLowerCase()} level concepts in React development.`;
+      dispatchQuestion(mockQuestion, difficulty);
     } finally {
       setLoading(false);
       // Release the lock after a short delay
       setTimeout(() => {
         questionGenerationLock.current = false;
+        console.log("🔓 Question generation lock released");
       }, 500);
     }
   }, [
@@ -201,6 +230,34 @@ const ChatInterface = () => {
     dispatch,
   ]);
 
+  // Helper function to dispatch question
+  const dispatchQuestion = (question, difficulty) => {
+    dispatch(
+      setCurrentQuestion({
+        text: question,
+        difficulty: difficulty,
+        timeLimit: timeLimits[difficulty],
+      })
+    );
+
+    dispatch(setTimer(timeLimits[difficulty]));
+
+    dispatch(
+      addChatMessage({
+        type: "question",
+        content: question,
+        difficulty: difficulty,
+        timestamp: new Date().toISOString(),
+      })
+    );
+
+    console.log(
+      `✅ Question ${
+        interviewProgress.currentQuestionIndex + 1
+      } generated successfully`
+    );
+  };
+
   const handleTimeUp = async () => {
     if (timerRef.current) {
       clearInterval(timerRef.current);
@@ -209,7 +266,6 @@ const ChatInterface = () => {
     const userAnswer =
       currentAnswer.trim() || "No answer provided (time expired)";
 
-    // Show user's answer
     dispatch(
       addChatMessage({
         type: "answer",
@@ -225,7 +281,6 @@ const ChatInterface = () => {
   const evaluateAnswer = async (answer) => {
     setLoading(true);
     try {
-      // Fix: Properly check for empty answers
       const actualAnswer = answer.trim();
       const isEmptyAnswer =
         actualAnswer === "" ||
@@ -272,14 +327,12 @@ const ChatInterface = () => {
         `📊 Question ${newIndex} evaluated. Score: ${evaluation.score}/10`
       );
 
-      // Stop at exactly 6 questions
       if (newIndex >= 6) {
         console.log("🎉 Interview completed!");
         await completeInterviewProcess(newScores);
         return;
       }
 
-      // Update progress FIRST
       dispatch(
         updateInterviewProgress({
           currentQuestionIndex: newIndex,
@@ -287,10 +340,9 @@ const ChatInterface = () => {
         })
       );
 
-      // Clear current question to allow next generation
       dispatch(setCurrentQuestion(null));
 
-      // Small delay before next question to ensure state is updated
+      // Trigger next question generation after state update
       setTimeout(() => {
         generateNextQuestion();
       }, 1000);
@@ -345,7 +397,6 @@ const ChatInterface = () => {
         clearInterval(timerRef.current);
       }
 
-      // Show user's answer immediately
       dispatch(
         addChatMessage({
           type: "answer",
@@ -354,10 +405,7 @@ const ChatInterface = () => {
         })
       );
 
-      // Clear the answer input immediately
       setCurrentAnswer("");
-
-      // Then evaluate (don't wait for state updates)
       evaluateAnswer(currentAnswer);
     } else if (!currentAnswer.trim()) {
       message.warning("Please enter your answer before submitting.");
@@ -396,7 +444,6 @@ const ChatInterface = () => {
 
       if (shouldGenerateQuestion) {
         console.log("🚀 Generating first question - THIS SHOULD RUN ONLY ONCE");
-        // Small delay to ensure everything is loaded
         setTimeout(() => {
           generateNextQuestion();
         }, 500);
@@ -415,7 +462,7 @@ const ChatInterface = () => {
     scrollToBottom();
   }, [chatHistory]);
 
-  // FIXED: This useEffect should trigger next question generation
+  // Fixed: This useEffect should trigger next question generation
   useEffect(() => {
     console.log(
       "🔍 State check - currentQuestion:",
@@ -430,16 +477,15 @@ const ChatInterface = () => {
       hasInitialized
     );
 
-    // If currentQuestion is null and we're not at the end, generate next question
     if (
       !currentQuestion &&
       interviewProgress.currentQuestionIndex < 6 &&
       !loading &&
       !isPaused &&
-      hasInitialized
+      hasInitialized &&
+      !questionGenerationLock.current
     ) {
       console.log("🔄 Current question cleared, generating next question");
-      // Add a small delay to ensure state is fully updated
       setTimeout(() => {
         generateNextQuestion();
       }, 300);
@@ -450,7 +496,6 @@ const ChatInterface = () => {
     loading,
     isPaused,
     hasInitialized,
-    generateNextQuestion,
   ]);
 
   useEffect(() => {
