@@ -168,6 +168,12 @@ localStorage.setItem("debug", "true");
 
 ---
 
+## ➡️ Live Link
+
+(https://swipeassignment2025.netlify.app/)
+
+---
+
 ## 🙏 Acknowledgments
 
 - ⚡ Groq for blazing-fast inference
