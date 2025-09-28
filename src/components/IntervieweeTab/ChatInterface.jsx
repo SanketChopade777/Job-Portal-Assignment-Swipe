@@ -550,7 +550,7 @@ const ChatInterface = () => {
             onClick={handlePauseResume}
             size="large"
           >
-            {isPaused ? "▶️ Resume Interview" : "⏸️ Pause Interview"}
+            {isPaused ? "Resume Interview" : "Pause Interview"}
           </Button>
         </div>
       )}
