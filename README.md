@@ -4,7 +4,6 @@
 ![React](https://img.shields.io/badge/React-18-blue?logo=react)
 ![Redux](https://img.shields.io/badge/Redux-Toolkit-764ABC?logo=redux)
 ![Ant Design](https://img.shields.io/badge/Ant%20Design-4.0-red?logo=antdesign)
-![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 
 An intelligent, full-stack technical interview platform that automates the interview process using **Groq’s lightning-fast AI models**.
 
